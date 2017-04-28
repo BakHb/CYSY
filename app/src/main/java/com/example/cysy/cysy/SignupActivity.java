@@ -1,6 +1,5 @@
 package com.example.cysy.cysy;
 
-import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.AsyncTask;
@@ -13,6 +12,9 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.lang.reflect.Field;
 import java.util.HashMap;
 
@@ -20,9 +22,45 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 
 public class SignupActivity extends AppCompatActivity {
+
+    enum SignupErrorMessages {
+        ERROR_REGISTERING ("Error Registering"),
+        ERROR_PSEUDO_ALREADY_EXISTS ("Your pseudo is already exists"),
+        ERROR_EMAIL_ALREADY_EXISTS ("Your email is already exists");
+
+        private String message;
+
+        SignupErrorMessages(String message){
+            this.message = message;
+        }
+
+        String getMessage(){
+            return this.message;
+        }
+    }
+
+    enum SignupMessageKeys {
+        CONNECT ("_connect"),
+        SUCCESS ("_success"),
+        ERROR ("_error"),
+        USER ("_user");
+
+        private String key;
+
+        SignupMessageKeys(String key){
+            this.key = key;
+        }
+
+        String getKey(){
+            return this.key;
+        }
+
+    }
+
     private static final String TAG = "SignupActivity";
 
     private static final String REGISTER_URL = "http://cysy.000webhostapp.com/insert.php";
+    private static final int WAIT_TIME_AFTER_SIGNUP = 3000;
 
     @BindView(R.id.input_pseudo) EditText _pseudoText;
     @BindView(R.id.input_name) EditText _nameText;
@@ -63,7 +101,7 @@ public class SignupActivity extends AppCompatActivity {
         Log.d(TAG, "Signup");
 
         if (!validate()) {
-            onSignupFailed();
+            onSignupFailed(SignupErrorMessages.ERROR_REGISTERING);
             return;
         }
 
@@ -79,23 +117,13 @@ public class SignupActivity extends AppCompatActivity {
         User user = new User(pseudo, password, name, address, email, mobile);
 
         registerUser(user);
-
-        /*new android.os.Handler().postDelayed(
-            new Runnable() {
-                    public void run() {
-                        // On complete call either onSignupSuccess or onSignupFailed
-                        // depending on success
-                        onSignupSuccess();
-                        // onSignupFailed();
-                    }
-                }, 3000);*/
     }
 
     static class User {
 
         static final String[] UserArgs = new String[]{"pseudo", "password", "name", "address", "email", "mobile"};
 
-        public String pseudo, password, name, address, email, mobile;
+        String pseudo, password, name, address, email, mobile;
 
         User(String pseudo, String password, String name, String address, String email, String mobile) {
             this.pseudo = pseudo;
@@ -118,7 +146,7 @@ public class SignupActivity extends AppCompatActivity {
 
     private void registerUser(User user) {
 
-        class RegisterUser extends AsyncTask<User, Void, String> {
+        class RegisterUser extends AsyncTask<User, Void, JSONObject> {
             private final String TAG = "RegisterUser";
 
             private ProgressDialog loading;
@@ -132,14 +160,16 @@ public class SignupActivity extends AppCompatActivity {
             }
 
             @Override
-            protected void onPostExecute(String s) {
-                super.onPostExecute(s);
+            protected void onPostExecute(JSONObject result) {
+                super.onPostExecute(result);
                 Log.d(TAG, "onPostExecute ...");
                 loading.dismiss();
+
+                onPostSignup(result);
             }
 
             @Override
-            protected String doInBackground(User... params) {
+            protected JSONObject doInBackground(User... params) {
                 Log.d(TAG, "doInBackground ...");
                 HashMap<String, String> data = new HashMap<String,String>();
                 Field[] userFields = User.class.getFields();
@@ -166,6 +196,68 @@ public class SignupActivity extends AppCompatActivity {
         ru.execute(user);
     }
 
+    private void onPostSignup(JSONObject result) {
+
+        final ProgressDialog progressDialog = new ProgressDialog(SignupActivity.this,
+                R.style.AppTheme_Dark_Dialog);
+        progressDialog.setIndeterminate(true);
+        progressDialog.setMessage("Signing up ... ");
+        progressDialog.show();
+
+        try {
+            int success = result.getInt(SignupMessageKeys.SUCCESS.getKey());
+
+            if (success == 1) {
+                new android.os.Handler().postDelayed(
+                        new Runnable() {
+                            public void run() {
+                                progressDialog.dismiss();
+
+                                onSignupSuccess();
+
+                            }
+                        }, WAIT_TIME_AFTER_SIGNUP);
+            } else {
+                String error = result.getString(SignupMessageKeys.ERROR.getKey());
+
+                if (error.equals(SignupErrorMessages.ERROR_REGISTERING.getMessage())) {
+                    new android.os.Handler().postDelayed(
+                            new Runnable() {
+                                public void run() {
+                                    progressDialog.dismiss();
+
+                                    onSignupFailed(SignupErrorMessages.ERROR_REGISTERING);
+                                }
+                            }, WAIT_TIME_AFTER_SIGNUP);
+                } else {
+                    if (error.equals(SignupErrorMessages.ERROR_PSEUDO_ALREADY_EXISTS.getMessage())) {
+                        new android.os.Handler().postDelayed(
+                                new Runnable() {
+                                    public void run() {
+                                        progressDialog.dismiss();
+
+                                        onSignupFailed(SignupErrorMessages.ERROR_PSEUDO_ALREADY_EXISTS);
+                                    }
+                                }, WAIT_TIME_AFTER_SIGNUP);
+                    } else {
+                        if (error.equals(SignupErrorMessages.ERROR_EMAIL_ALREADY_EXISTS.getMessage())) {
+                            new android.os.Handler().postDelayed(
+                                    new Runnable() {
+                                        public void run() {
+                                            progressDialog.dismiss();
+
+                                            onSignupFailed(SignupErrorMessages.ERROR_EMAIL_ALREADY_EXISTS);
+                                        }
+                                    }, WAIT_TIME_AFTER_SIGNUP);
+                        }
+                    }
+                }
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     public void onSignupSuccess() {
         _signupButton.setEnabled(true);
@@ -173,8 +265,17 @@ public class SignupActivity extends AppCompatActivity {
         finish();
     }
 
-    public void onSignupFailed() {
-        Toast.makeText(getBaseContext(), "Login failed", Toast.LENGTH_LONG).show();
+    public void onSignupFailed(SignupErrorMessages signupErrorMessages) {
+
+        switch (signupErrorMessages) {
+            case ERROR_REGISTERING:
+                Toast.makeText(getBaseContext(), "Login failed", Toast.LENGTH_LONG).show();
+                break;
+            default:
+                Toast.makeText(getBaseContext(), signupErrorMessages.getMessage(), Toast.LENGTH_LONG).show();
+                break;
+        }
+
         _signupButton.setEnabled(true);
     }
 
@@ -189,8 +290,8 @@ public class SignupActivity extends AppCompatActivity {
         String password = _passwordText.getText().toString();
         String reEnterPassword = _reEnterPasswordText.getText().toString();
 
-        if(pseudo.isEmpty() || pseudo.length() < 8){
-            _pseudoText.setError("at least 8 characters");
+        if(pseudo.isEmpty() || pseudo.length() < 5){
+            _pseudoText.setError("at least 5 characters");
             valid = false;
         } else {
             _pseudoText.setError(null);

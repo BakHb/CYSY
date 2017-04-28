@@ -6,6 +6,9 @@ package com.example.cysy.cysy;
 
 import android.util.Log;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.InputStreamReader;
@@ -20,7 +23,7 @@ import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
 
-public class RegisterUserClass {
+class RegisterUserClass {
 
     private static final String TAG = "RegisterUserClass";
 
@@ -28,13 +31,19 @@ public class RegisterUserClass {
     private static final int CONNECT_TIME_OUT = 15000;
 
 
-    public String sendPostRequest(String requestURL,
-                                  HashMap<String, String> postDataParams) {
+    JSONObject sendPostRequest(String requestURL,
+                               HashMap<String, String> postDataParams) {
 
         Log.d(TAG, "Sending the request to the server ...");
 
         URL url;
+        JSONObject responseObject = new JSONObject();
         String response = "";
+
+        int connect = 0, success = 0;
+        String error = SignupActivity.SignupErrorMessages.ERROR_REGISTERING.getMessage();
+        JSONObject user = null;
+
         try {
             url = new URL(requestURL);
 
@@ -56,20 +65,34 @@ public class RegisterUserClass {
             os.close();
             Log.d(TAG, "Request has been sent");
 
-            int responseCode=conn.getResponseCode();
+            int responseCode = conn.getResponseCode();
 
             if (responseCode == HttpsURLConnection.HTTP_OK) {
-                BufferedReader br=new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                connect = 1;
+                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 response = br.readLine();
-            }
-            else {
-                response="Error Registering";
+
+                JSONObject responseParser = new JSONObject(response);
+                success = responseParser.getInt(SignupActivity.SignupMessageKeys.SUCCESS.getKey());
+                error = responseParser.getString(SignupActivity.SignupMessageKeys.ERROR.getKey());
+                if (success == 1) {
+                    user = responseParser.getJSONObject(SignupActivity.SignupMessageKeys.USER.getKey());
+                }
             }
         } catch (Exception e) {
+            Log.e(TAG, e.toString());
+        }
+
+        try {
+            responseObject.put(SignupActivity.SignupMessageKeys.CONNECT.getKey(), connect);
+            responseObject.put(SignupActivity.SignupMessageKeys.SUCCESS.getKey(), success);
+            responseObject.put(SignupActivity.SignupMessageKeys.ERROR.getKey(), error);
+            responseObject.put(SignupActivity.SignupMessageKeys.USER.getKey(), user);
+        } catch (JSONException e) {
             e.printStackTrace();
         }
 
-        return response;
+        return responseObject;
     }
 
     private String getPostDataString(HashMap<String, String> params) throws UnsupportedEncodingException {
