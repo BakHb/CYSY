@@ -1,7 +1,9 @@
 package com.example.cysy.cysy;
 
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -11,11 +13,16 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.lang.reflect.Field;
+import java.util.HashMap;
+
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
 public class SignupActivity extends AppCompatActivity {
     private static final String TAG = "SignupActivity";
+
+    private static final String REGISTER_URL = "http://cysy.000webhostapp.com/insert.php";
 
     @BindView(R.id.input_pseudo) EditText _pseudoText;
     @BindView(R.id.input_name) EditText _nameText;
@@ -62,12 +69,6 @@ public class SignupActivity extends AppCompatActivity {
 
         _signupButton.setEnabled(false);
 
-        final ProgressDialog progressDialog = new ProgressDialog(SignupActivity.this,
-                R.style.AppTheme_Dark_Dialog);
-        progressDialog.setIndeterminate(true);
-        progressDialog.setMessage("Creating Account...");
-        progressDialog.show();
-
         String pseudo = _pseudoText.getText().toString();
         String name = _nameText.getText().toString();
         String address = _addressText.getText().toString();
@@ -76,7 +77,9 @@ public class SignupActivity extends AppCompatActivity {
         String password = _passwordText.getText().toString();
         String reEnterPassword = _reEnterPasswordText.getText().toString();
 
-        // TODO: Implement your own signup logic here.
+        User user = new User(pseudo, password, name, address, email, mobile);
+
+        registerUser(user);
 
         new android.os.Handler().postDelayed(
                 new Runnable() {
@@ -85,9 +88,61 @@ public class SignupActivity extends AppCompatActivity {
                         // depending on success
                         onSignupSuccess();
                         // onSignupFailed();
-                        progressDialog.dismiss();
                     }
                 }, 3000);
+    }
+
+    private void registerUser(User user) {
+
+
+
+        class RegisterUser extends AsyncTask<User, Void, String> {
+            private final String TAG = "RegisterUser";
+
+            private ProgressDialog loading;
+            private RegisterUserClass ruc = new RegisterUserClass();
+
+
+            @Override
+            protected void onPreExecute() {
+                super.onPreExecute();
+                Log.d(TAG, "onPreExecute ...");
+                loading = ProgressDialog.show(SignupActivity.this, "Please Wait...",null, true, true);
+            }
+
+            @Override
+            protected void onPostExecute(String s) {
+                super.onPostExecute(s);
+                Log.d(TAG, "onPostExecute ...");
+                loading.dismiss();
+            }
+
+            @Override
+            protected String doInBackground(User... params) {
+                Log.d(TAG, "doInBackground ...");
+                HashMap<String, String> data = new HashMap<String,String>();
+                Field[] userFields = User.class.getFields();
+
+                for(Field field : userFields){
+                    if(User.isUserArg(field.getName())) {
+                        try {
+                            data.put(field.toString(), field.get(params[0]).toString());
+                        } catch (IllegalAccessException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+
+                for (String s : data.values()){
+                    Log.d(TAG, s);
+                }
+
+                return ruc.sendPostRequest(REGISTER_URL,data);
+            }
+        }
+
+        RegisterUser ru = new RegisterUser();
+        ru.execute(user);
     }
 
 
@@ -99,7 +154,6 @@ public class SignupActivity extends AppCompatActivity {
 
     public void onSignupFailed() {
         Toast.makeText(getBaseContext(), "Login failed", Toast.LENGTH_LONG).show();
-
         _signupButton.setEnabled(true);
     }
 
