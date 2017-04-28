@@ -75,26 +75,48 @@ public class SignupActivity extends AppCompatActivity {
         String email = _emailText.getText().toString();
         String mobile = _mobileText.getText().toString();
         String password = _passwordText.getText().toString();
-        String reEnterPassword = _reEnterPasswordText.getText().toString();
 
         User user = new User(pseudo, password, name, address, email, mobile);
 
         registerUser(user);
 
-        new android.os.Handler().postDelayed(
-                new Runnable() {
+        /*new android.os.Handler().postDelayed(
+            new Runnable() {
                     public void run() {
                         // On complete call either onSignupSuccess or onSignupFailed
                         // depending on success
                         onSignupSuccess();
                         // onSignupFailed();
                     }
-                }, 3000);
+                }, 3000);*/
+    }
+
+    static class User {
+
+        static final String[] UserArgs = new String[]{"pseudo", "password", "name", "address", "email", "mobile"};
+
+        public String pseudo, password, name, address, email, mobile;
+
+        User(String pseudo, String password, String name, String address, String email, String mobile) {
+            this.pseudo = pseudo;
+            this.password = password;
+            this.name = name;
+            this.address = address;
+            this.email = email;
+            this.mobile = mobile;
+        }
+
+        static boolean isUserArg(String fieldName) {
+            for (String userArg : UserArgs){
+                if(userArg.equals(fieldName)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     private void registerUser(User user) {
-
-
 
         class RegisterUser extends AsyncTask<User, Void, String> {
             private final String TAG = "RegisterUser";
@@ -102,12 +124,11 @@ public class SignupActivity extends AppCompatActivity {
             private ProgressDialog loading;
             private RegisterUserClass ruc = new RegisterUserClass();
 
-
             @Override
             protected void onPreExecute() {
                 super.onPreExecute();
                 Log.d(TAG, "onPreExecute ...");
-                loading = ProgressDialog.show(SignupActivity.this, "Please Wait...",null, true, true);
+                loading = ProgressDialog.show(SignupActivity.this, "Please Wait ...",null, true, true);
             }
 
             @Override
